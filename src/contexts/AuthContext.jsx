@@ -2,10 +2,10 @@ import { createContext, useContext, useState, useEffect } from 'react';
 
 const AuthContext = createContext(null);
 
-// Simulación de credenciales válidas
-const VALID_CREDENTIALS = {
-  username: 'admin',
-  password: 'admin123'
+// Mock de usuarios válidos
+const VALID_USERS = {
+  admin: 'admin123',
+  user: 'user123',
 };
 
 export const AuthProvider = ({ children }) => {
@@ -14,11 +14,11 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Al cargar, verificar si hay un token guardado en localStorage
+  // Cargar sesión desde localStorage al montar
   useEffect(() => {
     const storedToken = localStorage.getItem('authToken');
     const storedUser = localStorage.getItem('authUser');
-    
+
     if (storedToken && storedUser) {
       setToken(storedToken);
       setUser(JSON.parse(storedUser));
@@ -26,87 +26,78 @@ export const AuthProvider = ({ children }) => {
     setLoading(false);
   }, []);
 
-  // Función de login que simula llamar al endpoint
+  // Función login
   const login = async (username, password) => {
-    try {
-      setError(null);
-      setLoading(true);
+    setLoading(true);
+    setError(null);
 
+    try {
       // Simular delay de red
       await new Promise(resolve => setTimeout(resolve, 800));
 
       // Validar credenciales
-      if (username !== VALID_CREDENTIALS.username || password !== VALID_CREDENTIALS.password) {
-        throw new Error('Usuario o contraseña incorrectos');
-      }
+      if (VALID_USERS[username] === password) {
+        const userData = {
+          id: Math.random().toString(36).substr(2, 9),
+          username,
+          email: `${username}@example.com`,
+          fullName: username.charAt(0).toUpperCase() + username.slice(1),
+        };
 
-      // Simular llamada al endpoint de login
-      const response = await fetch('/src/data/login.json');
-      
-      if (!response.ok) {
-        throw new Error('Error al conectar con el servidor');
-      }
+        // Generar token simulado
+        const newToken = `Bearer_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-      const data = await response.json();
+        // Guardar en estado
+        setToken(newToken);
+        setUser(userData);
 
-      if (data.success) {
-        // Guardar token y usuario
-        setToken(data.token);
-        setUser(data.user);
-        
-        // Persistir en localStorage
-        localStorage.setItem('authToken', data.token);
-        localStorage.setItem('authUser', JSON.stringify(data.user));
+        // Guardar en localStorage
+        localStorage.setItem('authToken', newToken);
+        localStorage.setItem('authUser', JSON.stringify(userData));
 
-        return { success: true, user: data.user };
+        return { success: true, user: userData };
       } else {
-        throw new Error('Error en la autenticación');
+        const errorMsg = 'Usuario o contraseña incorrectos';
+        setError(errorMsg);
+        return { success: false, error: errorMsg };
       }
     } catch (err) {
-      setError(err.message);
-      return { success: false, error: err.message };
+      console.error('Error en login:', err);
+      setError('Error al iniciar sesión');
+      return { success: false, error: 'Error al iniciar sesión' };
     } finally {
       setLoading(false);
     }
   };
 
-  // Función de logout
+  // Función logout
   const logout = () => {
     setToken(null);
     setUser(null);
+    setError(null);
     localStorage.removeItem('authToken');
     localStorage.removeItem('authUser');
   };
 
-  // Función para hacer peticiones a endpoints protegidos
+  // Función para obtener datos protegidos
   const fetchProtectedData = async () => {
-    try {
-      if (!token) {
-        throw new Error('No hay token de autenticación');
-      }
+    if (!token) {
+      return { success: false, error: 'No hay token' };
+    }
 
-      // Simular delay de red
+    try {
       await new Promise(resolve => setTimeout(resolve, 500));
 
-      // En una aplicación real, aquí se enviaría el token en el header
-      // headers: { 'Authorization': `Bearer ${token}` }
-      const response = await fetch('/src/data/protected-data.json');
-
-      if (!response.ok) {
-        throw new Error('Error al obtener datos protegidos');
-      }
-
-      const data = await response.json();
-      
-      // Validar que el token esté presente (simulación)
-      if (!token) {
-        throw new Error('Token no válido o expirado');
-      }
-
-      return { success: true, data: data.data };
+      return {
+        success: true,
+        data: {
+          message: 'Datos protegidos accedidos correctamente',
+          user: user,
+          timestamp: new Date().toISOString(),
+        },
+      };
     } catch (err) {
-      console.error('Error al obtener datos protegidos:', err);
-      return { success: false, error: err.message };
+      return { success: false, error: 'Error al obtener datos protegidos' };
     }
   };
 
@@ -115,10 +106,10 @@ export const AuthProvider = ({ children }) => {
     token,
     loading,
     error,
+    isAuthenticated: !!token,
     login,
     logout,
     fetchProtectedData,
-    isAuthenticated: !!token
   };
 
   return (
@@ -128,7 +119,6 @@ export const AuthProvider = ({ children }) => {
   );
 };
 
-// Hook personalizado para usar el contexto de autenticación
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
@@ -136,4 +126,3 @@ export const useAuth = () => {
   }
   return context;
 };
-
